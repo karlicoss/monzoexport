@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.6
 from sys import stdout
 
 from monzo_secrets import *
