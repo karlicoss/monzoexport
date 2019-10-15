@@ -1,8 +1,9 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.7
 # pip3 install pymonzo
 
 import json
 import sys
+from datetime import datetime, timedelta
 
 
 from monzo_secrets import *
@@ -25,9 +26,23 @@ def main():
 
     [acc] = [acc for acc in api.accounts() if acc.id == ACCOUNT_ID] # TODO just backup all??
     
-    transactions = [t._raw_data for t in api.transactions(acc.id, reverse=False)]
+    # TODO maybe just receive all data?
+    # TODO FIXME since
+    # transactions = [t._raw_data for t in api.transactions(acc.id, reverse=False)]
+
+    # ugh. after 5 minutes past auth can only get last 90 days now
+    since = datetime.now() - timedelta(days=90 - 1)  
+    transactions = api._get_response(
+        method='get',
+        endpoint='/transactions',
+        params={
+            'account_id': acc.id,
+            'since'     : f'{since:%Y-%m-%dT%H:%M:%SZ}',
+        },
+    ).json()['transactions']
+    # TODO perhaps keeping transactions as they are in a dict
     
-    json.dump(transactions, sys.stdout)
+    json.dump(transactions, sys.stdout, indent=1, ensure_ascii=False, sort_keys=True)
 
 if __name__ == '__main__':
     main()
