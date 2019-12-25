@@ -22,7 +22,7 @@ def main(*, DAL, demo=None):
         sources = [args.source]
 
     # logger.debug('using %s', sources)
-    dao = DAL(sources)
+    dao = DAL(list(sorted(sources)))
     print(dao)
     # TODO autoreload would be nice... https://github.com/ipython/ipython/issues/1144
     # TODO maybe just launch through ipython in the first place?
@@ -31,3 +31,10 @@ def main(*, DAL, demo=None):
     else:
         assert demo is not None
         demo(dao=dao)
+
+
+def logger(logger, **kwargs):
+    from kython.klogging import LazyLogger
+    # TODO FIXME vendorize
+    return LazyLogger(logger, **kwargs)
+

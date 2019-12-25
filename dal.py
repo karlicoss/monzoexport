@@ -3,7 +3,10 @@ import json
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Sequence, Union
 
+import dal_helper
 from dal_helper import Json, PathIsh
+
+log = dal_helper.logger('monzoexport', level='debug')
 
 
 AccountId = str
@@ -24,12 +27,12 @@ class Account(NamedTuple):
 class DAL:
     def __init__(self, sources: Sequence[PathIsh]) -> None:
         self.sources = list(map(Path, sources))
-        assert len(self.sources) == 1 # TODO later
 
 
     def data(self) -> Dict[AccountId, Account]:
         dd: Dict[AccountId, Account] = {}
         for src in self.sources:
+            log.debug("processing %s", src)
             j = json.loads(src.read_text())
         for acc_id, payload in j.items():
             if acc_id not in dd:
@@ -48,5 +51,4 @@ def demo(dao: DAL) -> None:
 
 
 if __name__ == '__main__':
-    import dal_helper
     dal_helper.main(DAL=DAL, demo=demo)
