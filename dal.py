@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import json
 from pathlib import Path
-from typing import Any, Dict, NamedTuple, Sequence, Union
+from typing import Any, Dict, NamedTuple, Sequence, Union, List
+
+from pymonzo.api_objects import MonzoTransaction, MonzoMerchant # type: ignore
 
 import dal_helper
 from dal_helper import Json, PathIsh
 
-log = dal_helper.logger('monzoexport', level='debug')
+logger = dal_helper.logger('monzoexport', level='debug')
 
 
 AccountId = str
@@ -18,8 +20,8 @@ class Account(NamedTuple):
     raw: Dict[TransactionId, TransactionRaw]
 
     @property
-    def transactions(self):
-        return list(self.raw.values())
+    def transactions(self) -> List[MonzoTransaction]:
+        return list(map(MonzoTransaction, self.raw.values()))
         # TODO iterator?
         # TODO sort by date?
 
@@ -29,18 +31,29 @@ class DAL:
         self.sources = list(map(Path, sources))
 
 
+    # TODO think about storage format again? acc_id is present in transactions anyway; might be easier to groupby?
     def data(self) -> Dict[AccountId, Account]:
         dd: Dict[AccountId, Account] = {}
         for src in self.sources:
-            log.debug("processing %s", src)
+            logger.debug("processing %s", src)
             j = json.loads(src.read_text())
-        for acc_id, payload in j.items():
-            if acc_id not in dd:
-                dd[acc_id] = Account({})
-            acc = dd[acc_id]
-            for traw in payload['data']['transactions']:
-                acc.raw[traw['id']] = traw
-            # TODO log how many were merged?
+            if isinstance(j, list):
+                # backport legacy data
+                acc_id = j[0]['account_id']
+                j = {acc_id: {'data': {'transactions': j}}}
+            for acc_id, payload in j.items():
+                if acc_id not in dd:
+                    dd[acc_id] = Account({})
+                acc = dd[acc_id]
+                transactions = payload['data']['transactions']
+                new_trans = 0
+                for traw in transactions:
+                    tid = traw['id']
+                    new_trans += 1 if tid not in acc.raw else 0
+                    # NOTE: hopefully makes sense to override here, as we collect more data?
+                    # don't think it's worthy arbitering etc.
+                    acc.raw[tid] = traw
+                logger.debug('%s: %-6d/%-6d new transactions (%-6d total)', acc_id, new_trans, len(transactions), len(acc.raw))
         return dd
 
 
