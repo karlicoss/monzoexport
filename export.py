@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # pip install pymonzo
-
 import argparse
 import json
 from datetime import datetime, timedelta
+from typing import Dict, Any
 
 
 # TODO submodule
@@ -15,35 +15,50 @@ import pymonzo
 from pymonzo import MonzoAPI
 
 
-# TODO FIXME get for all account ids?
-def run(account_id: str, **kwargs):
-    api = MonzoAPI()
+# TODO also move to export_helper??
+Json = Dict[str, Any]
 
-    [acc] = [acc for acc in api.accounts() if acc.id == account_id]
 
-    # TODO maybe just receive all data?
-    # TODO FIXME since
-    # transactions = [t._raw_data for t in api.transactions(acc.id, reverse=False)]
+class Exporter:
+    def __init__(self, *wargs, **kwargs) -> None:
+        self.api = MonzoAPI()
 
-    # ugh. after 5 minutes past auth can only get last 90 days
-    # https://docs.monzo.com/#list-transactions
-    # TODO add argument --first-time or something?
-    since = datetime.now() - timedelta(days=90 - 1)
-    transactions = api._get_response(
-        method='get',
-        endpoint='/transactions',
-        params={
-            'account_id': acc.id,
-            'since'     : f'{since:%Y-%m-%dT%H:%M:%SZ}',
-        },
-    ).json()['transactions']
-    # TODO perhaps keeping transactions as they are in a dict
-    # TODO he?
-    return transactions
+    def _get_account_data(self, account_id: str) -> Json:
+        # transactions = [t._raw_data for t in api.transactions(acc.id, reverse=False)]
+
+        # ugh. after 5 minutes past auth can only get last 90 days
+        # https://docs.monzo.com/#list-transactions
+        # TODO add argument --first-time or something?
+        since = datetime.now() - timedelta(days=90 - 1)
+        transactions = self.api._get_response(
+            method='get',
+            endpoint='/transactions',
+            params={
+                'account_id': account_id,
+                'since'     : f'{since:%Y-%m-%dT%H:%M:%SZ}',
+            },
+        ).json()['transactions']
+        # TODO perhaps keeping transactions as they are in a dict
+        # TODO he?
+        return {
+            # TODO balance? for ledging
+            'transactions': transactions,
+        }
+
+    # TODO could use dictify here...
+    def export_json(self) -> Json:
+        res = {}
+        for a in self.api.accounts():
+            adata = {}
+            aid = a.id
+            adata['info'] = a._raw_data
+            adata['data'] = self._get_account_data(account_id=aid)
+            res[aid] = adata
+        return res
 
 
 def get_json(**params):
-    return run(**params)
+    return Exporter(**params).export_json()
 
 
 def main():
@@ -63,6 +78,7 @@ def main():
     j = get_json(**params)
     js = json.dumps(j, indent=1, ensure_ascii=False, sort_keys=True)
     dumper(js)
+
 
 if __name__ == '__main__':
     main()
