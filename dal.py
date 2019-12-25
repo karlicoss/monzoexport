@@ -58,9 +58,25 @@ class DAL:
 
 
 def demo(dao: DAL) -> None:
+    import pandas as pd # type: ignore
+    import matplotlib.pyplot as plt # type: ignore
     for aid, acc in dao.data().items():
-        # TODO could call some pandas perhaps?
         print(f"Account {aid}: {len(acc.transactions)} transactions total")
+        df = pd.DataFrame({
+            'dt': t.created,
+            'description': t.description,
+            # TODO currency
+            'amount': t.amount,
+            'category': t.category,
+        } for t in acc.transactions)
+        df = df.set_index(['dt'])
+        # df.to_string(justify='left')
+        print(df)
+
+        breakdown = df.groupby('category')['amount'].sum()
+        breakdown = breakdown.abs()
+        breakdown.plot.pie(title=aid)
+        plt.show()
 
 
 if __name__ == '__main__':
