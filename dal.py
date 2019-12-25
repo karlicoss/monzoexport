@@ -14,6 +14,12 @@ TransactionRaw = Json
 class Account(NamedTuple):
     raw: Dict[TransactionId, TransactionRaw]
 
+    @property
+    def transactions(self):
+        return list(self.raw.values())
+        # TODO iterator?
+        # TODO sort by date?
+
 
 class DAL:
     def __init__(self, sources: Sequence[PathIsh]) -> None:
@@ -35,6 +41,12 @@ class DAL:
         return dd
 
 
+def demo(dao: DAL) -> None:
+    for aid, acc in dao.data().items():
+        # TODO could call some pandas perhaps?
+        print(f"Account {aid}: {len(acc.transactions)} transactions total")
+
+
 if __name__ == '__main__':
     import dal_helper
-    dal_helper.main(DAL=DAL)
+    dal_helper.main(DAL=DAL, demo=demo)

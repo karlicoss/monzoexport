@@ -10,7 +10,7 @@ PathIsh = Union[str, Path]
 Json = Dict[str, Any] # TODO Mapping?
 
 
-def main(DAL):
+def main(*, DAL, demo=None):
     p = argparse.ArgumentParser()
     p.add_argument('--source', type=str, required=True)
     p.add_argument('--no-glob', action='store_true')
@@ -29,4 +29,5 @@ def main(DAL):
     if args.interactive:
         IPython.embed(header="Feel free to mess with 'dao' object in the interactive shell")
     else:
-        raise RuntimeError()
+        assert demo is not None
+        demo(dao=dao)
