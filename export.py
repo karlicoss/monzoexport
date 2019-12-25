@@ -4,6 +4,7 @@ import argparse
 import json
 from datetime import datetime, timedelta
 from typing import Dict, Any
+import logging
 
 
 # TODO submodule
@@ -26,9 +27,10 @@ class Exporter:
     def _get_account_data(self, account_id: str) -> Json:
         # transactions = [t._raw_data for t in api.transactions(acc.id, reverse=False)]
 
+        # TODO add argument --first-time or something?
         # ugh. after 5 minutes past auth can only get last 90 days
         # https://docs.monzo.com/#list-transactions
-        # TODO add argument --first-time or something?
+        # otherwise we'd get auth error
         since = datetime.now() - timedelta(days=90 - 1)
         transactions = self.api._get_response(
             method='get',
@@ -38,11 +40,13 @@ class Exporter:
                 'since'     : f'{since:%Y-%m-%dT%H:%M:%SZ}',
             },
         ).json()['transactions']
-        # TODO perhaps keeping transactions as they are in a dict
-        # TODO he?
+        full_transactions = (
+            self.api.transaction(t['id'], expand_merchant=True)._raw_data
+            for t in transactions
+        )
         return {
             # TODO balance? for ledging
-            'transactions': transactions,
+            'transactions': list(full_transactions),
         }
 
     # TODO could use dictify here...
@@ -81,5 +85,7 @@ def main():
 
 
 if __name__ == '__main__':
+    # from kython.klogging import setup_logzero
+    # setup_logzero(logging.getLogger('requests_oauthlib'), level=logging.DEBUG)
     main()
 
