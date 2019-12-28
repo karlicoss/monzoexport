@@ -12,8 +12,7 @@ import pymonzo
 from pymonzo import MonzoAPI
 
 
-# TODO also move to export_helper??
-Json = Dict[str, Any]
+from export_helper import Json
 
 
 class Exporter:
@@ -124,7 +123,8 @@ See https://docs.monzo.com/#list-transactions for more information.
 
 
 if __name__ == '__main__':
-    from kython.klogging import setup_logzero
-    setup_logzero(logging.getLogger('requests_oauthlib'), level=logging.DEBUG)
+    # TODO move to export_helper?
+    # from kython.klogging import setup_logzero
+    # setup_logzero(logging.getLogger('requests_oauthlib'), level=logging.DEBUG)
     main()
 

@@ -1,7 +1,10 @@
 import argparse
 from pathlib import Path
 import sys
-from typing import Sequence
+from typing import Sequence, Dict, Any
+
+
+Json = Dict[str, Any]
 
 
 def setup_parser(parser: argparse.ArgumentParser, params: Sequence[str]):
