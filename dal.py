@@ -69,7 +69,7 @@ def demo(dao: DAL) -> None:
             'amount': t.amount,
             'category': t.category,
         } for t in acc.transactions)
-        df = df.set_index(['dt'])
+        df.set_index('dt', inplace=True)
         # df.to_string(justify='left')
         print(df)
 
