@@ -6,10 +6,8 @@ from typing import Dict, Any
 import logging
 
 
-# TODO submodule?
-# pip install pymonzo
-import pymonzo
-from pymonzo import MonzoAPI
+import pymonzo # type: ignore
+from pymonzo import MonzoAPI # type: ignore
 
 
 from export_helper import Json
