@@ -1,0 +1,84 @@
+#+begin_src python :results drawer :exports results
+import export
+return export.make_parser().prog
+#+end_src
+
+#+RESULTS:
+:results:
+Tool to export your Monzo transactions
+:end:
+
+* Setting up
+1. =pip3 install --user -r requirements.txt=
+2. *Log in and do an initial export*
+
+   The =--first-time= parameter will walk you through the login procedure:
+
+   : ./export.py --token-path token.json --first-time /path/to/first-export.json
+
+   After a successful export, move =token.json= somewhere safe, and pass it as =token-path= later.
+   You won't need to pass =--first-time= anymore.
+
+   Note that *after 5 minutes after login, api can only sync the last 90 days of transactions*
+   (see https://docs.monzo.com/#list-transactions for more information).
+   Because of that it's important to do at least one export immediately once you received the token.
+
+
+* Exporting
+
+#+begin_src python :results drawer :exports results 
+import export; return export.make_parser().epilog
+#+end_src
+
+#+RESULTS:
+:results:
+
+Usage:
+
+*Recommended*: create =secrets.py= keeping your api parameters, e.g.:
+
+
+: token-path = "TOKEN-PATH"
+
+
+After that, use:
+
+: ./export.py --secrets /path/to/secrets.py
+
+That way you type less and have control over where you keep your plaintext secrets.
+
+*Alternatively*, you can pass parameters directly, e.g.
+
+: ./export.py --token-path <token-path>
+
+However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
+
+
+You can also import ~export.py~ as a module and call ~get_json~ function directly to get raw JSON.
+
+
+I *highly* recommend checking exported files at least once just to make sure they contain everything you expect from your export. If not, please feel free to ask or raise an issue!
+
+:end:
+
+* Using data
+  
+#+begin_src python :results drawer :exports results 
+import dal_helper; return dal_helper.make_parser().epilog
+#+end_src
+
+#+RESULTS:
+:results:
+
+You can use =dal.py= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
+I elaborate on motivation behind it [[https://beepb00p.xyz/exports.html#dal][here]].
+
+- main usecase is to be imported as python module to allow for *programmatic access* to your data.
+
+  You can find some inspiration in [[https://beepb00p.xyz/mypkg.html][=my.=]] package that I'm using as an API to all my personal data.
+
+- to test it against your export, simply run: ~./dal.py --source /path/to/export~
+
+- you can also try it interactively: ~./dal.py --source /path/to/export --interactive~
+
+:end:
