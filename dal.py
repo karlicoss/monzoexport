@@ -64,18 +64,17 @@ def demo(dao: DAL) -> None:
         print(f"Account {aid}: {len(acc.transactions)} transactions total")
         df = pd.DataFrame({
             'dt': t.created,
-            'description': t.description,
+            'description': t.description, # type: ignore
             # TODO currency
-            'amount': t.amount,
-            'category': t.category,
+            'amount': t.amount, # type: ignore
+            'category': t.category, # type: ignore
         } for t in acc.transactions)
-        df.set_index('dt', inplace=True)
-        # df.to_string(justify='left')
-        print(df)
-
-        breakdown = df.groupby('category')['amount'].sum()
-        breakdown = breakdown.abs()
-        breakdown.plot.pie(title=aid)
+        if len(df) > 0:
+            df.set_index('dt', inplace=True)
+            # df.to_string(justify='left')
+            breakdown = df.groupby('category')['amount'].sum()
+            breakdown = breakdown.abs()
+            breakdown.plot.pie(title=aid)
         plt.show()
 
 
