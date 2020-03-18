@@ -65,7 +65,18 @@ def login():
     """
     Asking for user input here is ok; we only need to do it once
     """
-    # see https://github.com/pawelad/pymonzo#authentication
+    token_path = pymonzo.monzo_api.config.TOKEN_FILE_PATH
+    print(f'''
+This will log you into Monzo API.
+
+Please follow the [[https://github.com/pawelad/pymonzo#oauth-2][instructions]],
+and enter the auth parameters as you are prompted.
+
+You'll only need to input that manually once!
+After that, the credentials are saved to the file ({token_path}), and you'll just have to pass it to the export script.
+'''.lstrip())
+
+
     redirect_uri = 'https://github.com'
     client_id = input('client id: ')
     client_secret = input('client secret: ')
@@ -88,22 +99,33 @@ def login():
     print("Token should be saved on disk now (you won't need to relogin anymore)")
 
 
-def main():
+def make_parser():
     # TODO add logger configuration to export_helper?
     # TODO autodetect logzero?
-    from export_helper import setup_parser
-    parser = argparse.ArgumentParser("Tool to export your personal Monzo data")
-    setup_parser(parser=parser, params=['token-path']) # TODO exports -- need help for each param?
+    from export_helper import setup_parser, Parser
+    parser = Parser("Tool to export your Monzo transactions")
+    setup_parser(
+        parser=parser,
+        params=['token-path'],
+        extra_usage='''
+You can also import ~export.py~ as a module and call ~get_json~ function directly to get raw JSON.
+        '''
+    )
+    # TODO exports -- need help for each param?
     parser.add_argument(
         '--first-time',
         action='store_true',
         help='''
-This will log you in (TODO)
-and fetch all of your transactions.
+This will log you in and fetch all of your transactions.
 
 After 5 minutes after login, api can only sync the last 90 days of transactions.
 See https://docs.monzo.com/#list-transactions for more information.
 ''')
+    return parser
+
+
+def main():
+    parser = make_parser()
     args = parser.parse_args()
 
     params = args.params
