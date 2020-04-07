@@ -2,7 +2,7 @@
 import argparse
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 
 
@@ -61,7 +61,7 @@ def get_json(**params):
     return Exporter(**params).export_json()
 
 
-def login():
+def login(client_id: Optional[str]=None, client_secret: Optional[str]=None):
     """
     Asking for user input here is ok; we only need to do it once
     """
@@ -78,9 +78,10 @@ After that, the credentials are saved to the file ({token_path}), and you'll jus
 
 
     redirect_uri = 'https://github.com'
-    client_id = input('client id: ')
-    client_secret = input('client secret: ')
-    # TODO patch up redicect url here?
+    if client_id is None:
+        client_id = input('client id: ')
+    if client_secret is None:
+        client_secret = input('client secret: ')
     auth_url = f'https://auth.monzo.com/?response_type=code&redirect_uri={redirect_uri}&client_id={client_id}'
     print(f'Opening link to proceed with auth: {auth_url}')
     from subprocess import run
