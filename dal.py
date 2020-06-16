@@ -4,6 +4,12 @@ from pathlib import Path
 from typing import Any, Dict, NamedTuple, Sequence, Union, List
 
 from pymonzo.api_objects import MonzoTransaction, MonzoMerchant # type: ignore
+### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
+T_keys = T._required_keys
+if 'account_balance' in T_keys:
+    T_keys.remove('account_balance')
+###
+
 
 import dal_helper
 from dal_helper import Json, PathIsh

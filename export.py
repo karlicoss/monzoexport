@@ -5,10 +5,14 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import logging
 
-
+### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
+from pymonzo.api_objects import MonzoTransaction # type: ignore
+T_keys = MonzoTransaction._required_keys
+if 'account_balance' in T_keys:
+    T_keys.remove('account_balance')
+###
 import pymonzo # type: ignore
 from pymonzo import MonzoAPI # type: ignore
-
 
 from export_helper import Json
 
