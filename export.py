@@ -80,8 +80,10 @@ You'll only need to input that manually once!
 After that, the credentials are saved to the file ({token_path}), and you'll just have to pass it to the export script.
 '''.lstrip())
 
-
+    # not sure if relying on builtin redirect URI is a good idea?
     redirect_uri = 'https://github.com'
+    pymonzo.monzo_api.config.REDIRECT_URI = redirect_uri
+
     if client_id is None:
         client_id = input('client id: ')
     if client_secret is None:
@@ -137,6 +139,7 @@ def main():
     dumper = args.dumper
     first_time = args.first_time
 
+    # todo use env variable?
     pymonzo.monzo_api.config.TOKEN_FILE_PATH = params['token_path']
 
     if first_time:
