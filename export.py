@@ -41,7 +41,9 @@ class Exporter:
             },
         ).json()['transactions']
         full_transactions = (
-            self.api.transaction(t['id'], expand_merchant=True)._raw_data
+            self.api._get_response(method='get', endpoint=f"/transactions/{t['id']}", params={'expand[]': 'merchant'}).json()['transaction']
+            # NOTE: sadly this doens't work at the momen, see https://github.com/pawelad/pymonzo/issues/28
+            # self.api.transaction(t['id'], expand_merchant=True)._raw_data
             for t in transactions
         )
         return {
