@@ -1,0 +1,3 @@
+[submodule "src/monzoexport/exporthelpers"]
+	path = src/monzoexport/exporthelpers
+	url = git@github.com:karlicoss/exporthelpers.git

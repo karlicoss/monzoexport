@@ -1,6 +1,5 @@
 #+begin_src python :results drawer :exports results
-import export
-return export.make_parser().prog
+import monzoexport.export as E; return E.make_parser().prog
 #+end_src
 
 #+RESULTS:
@@ -9,12 +8,14 @@ Tool to export your Monzo transactions
 :end:
 
 * Setting up
-1. =pip3 install --user -r requirements.txt=
+1. The easiest way is =pip3 install --user git+https://github.com/karlicoss/monzoexport=.
+
+   Alternatively, use =git clone --recursive=, or =git pull && git submodule update --init=. After that, you can use =pip3 install --editable=.
 2. *Log in and do an initial export*
 
    The =--first-time= parameter will walk you through the login procedure:
 
-   : ./export.py --token-path token.json --first-time /path/to/first-export.json
+   : python3 -m monzoexport.export --token-path token.json --first-time /path/to/first-export.json
 
    After a successful export, move =token.json= somewhere safe, and pass it as =token-path= later.
    You won't need to pass =--first-time= anymore.
@@ -26,8 +27,8 @@ Tool to export your Monzo transactions
 
 * Exporting
 
-#+begin_src python :results drawer :exports results 
-import export; return export.make_parser().epilog
+#+begin_src python :results drawer :exports results
+import monzoexport.export as E; return E.make_parser().epilog
 #+end_src
 
 #+RESULTS:
@@ -43,13 +44,13 @@ Usage:
 
 After that, use:
 
-: ./export.py --secrets /path/to/secrets.py
+: python3 -m monzoexport.export --secrets /path/to/secrets.py
 
 That way you type less and have control over where you keep your plaintext secrets.
 
 *Alternatively*, you can pass parameters directly, e.g.
 
-: ./export.py --token-path <token-path>
+: python3 -m monzoexport.export --token-path <token-path>
 
 However, this is verbose and prone to leaking your keys/tokens/passwords in shell history.
 
@@ -64,21 +65,21 @@ I *highly* recommend checking exported files at least once just to make sure the
 * Using data
   
 #+begin_src python :results drawer :exports results 
-import dal_helper; return dal_helper.make_parser().epilog
+import monzoexport.exporthelpers.dal_helper as D; return D.make_parser().epilog
 #+end_src
 
 #+RESULTS:
 :results:
 
-You can use =dal.py= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
+You can use =monzoexport.dal= (stands for "Data Access/Abstraction Layer") to access your exported data, even offline.
 I elaborate on motivation behind it [[https://beepb00p.xyz/exports.html#dal][here]].
 
 - main usecase is to be imported as python module to allow for *programmatic access* to your data.
 
   You can find some inspiration in [[https://beepb00p.xyz/mypkg.html][=my.=]] package that I'm using as an API to all my personal data.
 
-- to test it against your export, simply run: ~./dal.py --source /path/to/export~
+- to test it against your export, simply run: ~python3 -m monzoexport.dal --source /path/to/export~
 
-- you can also try it interactively: ~./dal.py --source /path/to/export --interactive~
+- you can also try it interactively: ~python3 -m monzoexport.dal --source /path/to/export --interactive~
 
 :end:
