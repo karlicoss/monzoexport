@@ -32,7 +32,11 @@ def main() -> None:
         ],
         extras_require={
             'testing' : ['pytest'],
-            'linting' : ['pytest', 'mypy', 'lxml'],  # lxml for mypy coverage report
+            'linting' : [
+                'pytest', 
+                'mypy', 'lxml',  # lxml for mypy coverage report
+                'orjson',  # optional for DAL
+            ],
             'dal_demo': ['pandas', 'matplotlib'],
         },
     )

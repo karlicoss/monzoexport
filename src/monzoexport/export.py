@@ -9,13 +9,13 @@ from .exporthelpers.export_helper import Json
 
 
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
-from pymonzo.api_objects import MonzoTransaction  # type: ignore
+from pymonzo.api_objects import MonzoTransaction  # type: ignore[import]
 T_keys = MonzoTransaction._required_keys
 if 'account_balance' in T_keys:
     T_keys.remove('account_balance')
 ###
 import pymonzo  # type: ignore
-from pymonzo import MonzoAPI  # type: ignore
+from pymonzo import MonzoAPI
 
 
 class Exporter:

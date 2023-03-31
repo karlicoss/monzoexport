@@ -7,7 +7,7 @@ from .exporthelpers import dal_helper, logging_helper
 from .exporthelpers.dal_helper import PathIsh, Json, pathify
 
 
-from pymonzo.api_objects import MonzoTransaction, MonzoMerchant  # type: ignore
+from pymonzo.api_objects import MonzoTransaction, MonzoMerchant  # type: ignore[import]
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
 T_keys = MonzoTransaction._required_keys
 if 'account_balance' in T_keys:
@@ -71,10 +71,10 @@ def demo(dao: DAL) -> None:
         print(f"Account {aid}: {len(acc.transactions)} transactions total")
         df = pd.DataFrame({
             'dt': t.created,
-            'description': t.description, # type: ignore
+            'description': t.description,
             # TODO currency
-            'amount': t.amount, # type: ignore
-            'category': t.category, # type: ignore
+            'amount': t.amount,
+            'category': t.category,
         } for t in acc.transactions)
         if len(df) > 0:
             df.set_index('dt', inplace=True)
