@@ -2,12 +2,11 @@
 import json
 from typing import Dict, NamedTuple, Sequence, List
 
-
 from .exporthelpers import dal_helper, logging_helper
 from .exporthelpers.dal_helper import PathIsh, Json, pathify
 
+from pymonzo.api_objects import MonzoTransaction, MonzoMerchant  # type: ignore[import-untyped]
 
-from pymonzo.api_objects import MonzoTransaction, MonzoMerchant  # type: ignore[import]
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
 T_keys = MonzoTransaction._required_keys
 if 'account_balance' in T_keys:
@@ -15,7 +14,7 @@ if 'account_balance' in T_keys:
 ###
 
 
-logger = logging_helper.logger('monzoexport')
+logger = logging_helper.make_logger(__name__)
 
 
 AccountId = str
@@ -36,7 +35,6 @@ class Account(NamedTuple):
 class DAL:
     def __init__(self, sources: Sequence[PathIsh]) -> None:
         self.sources = list(map(pathify, sources))
-
 
     # TODO think about storage format again? acc_id is present in transactions anyway; might be easier to groupby?
     def data(self) -> Dict[AccountId, Account]:
@@ -65,8 +63,9 @@ class DAL:
 
 
 def demo(dao: DAL) -> None:
-    import pandas as pd # type: ignore
-    import matplotlib.pyplot as plt # type: ignore
+    import pandas as pd
+    import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+
     for aid, acc in dao.data().items():
         print(f"Account {aid}: {len(acc.transactions)} transactions total")
         df = pd.DataFrame({
@@ -81,8 +80,9 @@ def demo(dao: DAL) -> None:
             # df.to_string(justify='left')
             breakdown = df.groupby('category')['amount'].sum()
             breakdown = breakdown.abs()
-            breakdown.plot.pie(title=aid)
+            breakdown.plot.pie(title=aid)  # type: ignore[call-overload]  # not sure why mypy complaining, it works...
         plt.show()
+        # plt.savefig('plot.png')  # useful for testing
 
 
 def main() -> None:
