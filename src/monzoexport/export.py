@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
-import json
 from datetime import datetime, timedelta
+import json
+from subprocess import run
 from typing import Optional
 
 
-from .exporthelpers import export_helper, logging_helper
+from .exporthelpers import export_helper
 from .exporthelpers.export_helper import Json
 
 
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
-from pymonzo.api_objects import MonzoTransaction  # type: ignore[import]
+from pymonzo.api_objects import MonzoTransaction  # type: ignore[import-untyped]
+
 T_keys = MonzoTransaction._required_keys
 if 'account_balance' in T_keys:
     T_keys.remove('account_balance')
 ###
+
 import pymonzo  # type: ignore
 from pymonzo import MonzoAPI
 
@@ -38,7 +41,7 @@ class Exporter:
             endpoint='/transactions',
             params={
                 'account_id': account_id,
-                'since'     : since,
+                'since': since,
             },
         ).json()['transactions']
         full_transactions = (
@@ -68,12 +71,13 @@ def get_json(**params):
     return Exporter(**params).export_json()
 
 
-def login(client_id: Optional[str]=None, client_secret: Optional[str]=None):
+def login(client_id: Optional[str] = None, client_secret: Optional[str] = None):
     """
     Asking for user input here is ok; we only need to do it once
     """
     token_path = pymonzo.monzo_api.config.TOKEN_FILE_PATH
-    print(f'''
+    print(
+        f'''
 This will log you into Monzo API.
 
 Please follow the [[https://github.com/pawelad/pymonzo#oauth-2][instructions]],
@@ -81,7 +85,8 @@ and enter the auth parameters as you are prompted.
 
 You'll only need to input that manually once!
 After that, the credentials are saved to the file ({token_path}), and you'll just have to pass it to the export script.
-'''.lstrip())
+'''.lstrip()
+    )
 
     # not sure if relying on builtin redirect URI is a good idea?
     redirect_uri = 'https://github.com'
@@ -93,10 +98,10 @@ After that, the credentials are saved to the file ({token_path}), and you'll jus
         client_secret = input('client secret: ')
     auth_url = f'https://auth.monzo.com/?response_type=code&redirect_uri={redirect_uri}&client_id={client_id}'
     print(f'Opening link to proceed with auth: {auth_url}')
-    from subprocess import run
+
     try:
         run(['xdg-open', auth_url])
-    except: # in case they not have xdg-open..
+    except:  # in case they not have xdg-open..
         pass
     auth_code = input('auth code (after browser auth): ')
     api = MonzoAPI(
@@ -112,13 +117,14 @@ After that, the credentials are saved to the file ({token_path}), and you'll jus
 def make_parser():
     # TODO add logger configuration to export_helper?
     from .exporthelpers.export_helper import setup_parser, Parser
+
     parser = Parser("Tool to export your Monzo transactions")
     setup_parser(
         parser=parser,
         params=['token-path'],
         extra_usage='''
 You can also import ~export.py~ as a module and call ~get_json~ function directly to get raw JSON.
-        '''
+        ''',
     )
     parser.add_argument(
         '--first-time',
@@ -128,7 +134,8 @@ This will log you in and fetch all of your transactions.
 
 After 5 minutes after login, api can only sync the last 90 days of transactions.
 See https://docs.monzo.com/#list-transactions for more information.
-''')
+''',
+    )
     return parser
 
 
@@ -156,4 +163,3 @@ if __name__ == '__main__':
     # from kython.klogging import setup_logzero
     # setup_logzero(logging.getLogger('requests_oauthlib'), level=logging.DEBUG)
     main()
-
