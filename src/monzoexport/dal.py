@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import json
-from typing import Dict, NamedTuple, Sequence, List
+from typing import Dict, NamedTuple, Sequence, Iterator, Set, List
 
 from .exporthelpers import dal_helper, logging_helper
 from .exporthelpers.dal_helper import PathIsh, Json, pathify
+
+import orjson
 
 from pymonzo.api_objects import MonzoTransaction, MonzoMerchant  # type: ignore[import-untyped]
 
@@ -22,14 +23,23 @@ TransactionId = str
 TransactionRaw = Json
 
 
+def _fix_raw_transaction(raw) -> None:
+    merchant = raw.get('merchant')
+    if not isinstance(merchant, dict):
+        # in old exports merchant is a str??
+        return
+    if 'created' not in merchant:
+        # if there is no created date, parsing merchant fails
+        # see https://github.com/pawelad/pymonzo/issues/28
+        merchant['created'] = raw['created']
+
+
 class Account(NamedTuple):
     raw: Dict[TransactionId, TransactionRaw]
 
     @property
     def transactions(self) -> List[MonzoTransaction]:
         return list(map(MonzoTransaction, self.raw.values()))
-        # TODO iterator?
-        # TODO sort by date?
 
 
 class DAL:
@@ -39,27 +49,41 @@ class DAL:
     # TODO think about storage format again? acc_id is present in transactions anyway; might be easier to groupby?
     def data(self) -> Dict[AccountId, Account]:
         dd: Dict[AccountId, Account] = {}
-        for src in self.sources:
-            logger.debug("processing %s", src)
-            j = json.loads(src.read_text())
+        for raw in self.transactions_raw():
+            acc_id = raw['account_id']
+            acc = dd.get(acc_id)
+            if acc is None:
+                acc = Account({})
+                dd[acc_id] = acc
+            acc.raw[raw['id']] = raw
+        return dd
+
+    # order in raw file looks ok, chronological?
+    def transactions_raw(self) -> Iterator[TransactionRaw]:
+        emitted: Set[TransactionId] = set()
+        total = len(self.sources)
+        width = len(str(total))
+        for idx, path in enumerate(self.sources):
+            logger.info(f'processing [{idx:>{width}}/{total:>{width}}] {path}')
+            j = orjson.loads(path.read_bytes())
             if isinstance(j, list):
                 # backport legacy data
                 acc_id = j[0]['account_id']
                 j = {acc_id: {'data': {'transactions': j}}}
-            for acc_id, payload in j.items():
-                if acc_id not in dd:
-                    dd[acc_id] = Account({})
-                acc = dd[acc_id]
-                transactions = payload['data']['transactions']
-                new_trans = 0
-                for traw in transactions:
-                    tid = traw['id']
-                    new_trans += 1 if tid not in acc.raw else 0
+            for acc_id, acc_payload in j.items():
+                raws = acc_payload['data']['transactions']
+                for raw in raws:
+                    _fix_raw_transaction(raw)
+                    t_id = raw['id']
                     # NOTE: hopefully makes sense to override here, as we collect more data?
-                    # don't think it's worthy arbitering etc.
-                    acc.raw[tid] = traw
-                logger.debug('%s: %-6d/%-6d new transactions (%-6d total)', acc_id, new_trans, len(transactions), len(acc.raw))
-        return dd
+                    # TODO not sure what to do about transactions that were updated...
+                    if t_id in emitted:
+                        continue
+                    emitted.add(t_id)
+                    yield raw
+
+    def transactions(self) -> Iterator[MonzoTransaction]:
+        yield from map(MonzoTransaction, self.transactions_raw())
 
 
 def demo(dao: DAL) -> None:
