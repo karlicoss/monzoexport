@@ -96,7 +96,7 @@ After that, the credentials are saved to the file ({token_path}), and you'll jus
         client_id = input('client id: ')
     if client_secret is None:
         client_secret = input('client secret: ')
-    auth_url = f'https://auth.monzo.com/?response_type=code&redirect_uri={redirect_uri}&client_id={client_id}'
+    auth_url = f'https://auth.monzo.com/?response_type=code&redirect_uri={redirect_uri}&client_id={client_id}&state=some_secret_string'
     print(f'Opening link to proceed with auth: {auth_url}')
 
     try:

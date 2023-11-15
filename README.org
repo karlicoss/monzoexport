@@ -11,7 +11,17 @@ Tool to export your Monzo transactions
 1. The easiest way is =pip3 install --user git+https://github.com/karlicoss/monzoexport=.
 
    Alternatively, use =git clone --recursive=, or =git pull && git submodule update --init=. After that, you can use =pip3 install --editable=.
-2. *Log in and do an initial export*
+2. Create a new oauth client on [[https://developers.monzo.com/apps/home][monzo website]].
+
+   - pick confidentiality to be "confidential"
+   - redirect uri should be =https://github.com= (it's currently hardcoded in the export script)
+
+   After creating the client, click on it in the oauth clients list.
+
+   - add your own user id to "collaborators", your User ID will be the same as app "Owner ID". You might need to refresh the page to see changes.
+   - take note of "Client ID" and "Client secret", you'll need them on the next step
+
+3. *Log in and do an initial export*
 
    The =--first-time= parameter will walk you through the login procedure:
 
