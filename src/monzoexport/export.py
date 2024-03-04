@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from subprocess import run
-from typing import Optional
+from typing import Optional, List
 
 
 from .exporthelpers import export_helper
 from .exporthelpers.export_helper import Json
 
+# useful for debugging http calls
+# import logging
+# # Enable logging at the DEBUG level
+# logging.basicConfig(level=logging.DEBUG)
 
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
 from pymonzo.api_objects import MonzoTransaction  # type: ignore[import-untyped]
@@ -22,28 +26,53 @@ from pymonzo import MonzoAPI
 
 
 class Exporter:
-    def __init__(self, *args, first_time=False, **kwargs) -> None:
+    def __init__(self, *args, full: bool = False, **kwargs) -> None:
         self.api = MonzoAPI()
-        self.first_time = first_time
+        self.full = full
 
     def _get_account_data(self, account_id: str) -> Json:
-        # TODO add argument --first-time or something?
         # ugh. after 5 minutes past auth can only get last 90 days
         # https://docs.monzo.com/#list-transactions
         # otherwise we'd get auth error
-        if self.first_time:
-            since = None
-        else:
-            since_dt = datetime.now() - timedelta(days=90 - 1)
-            since = f'{since_dt:%Y-%m-%dT%H:%M:%SZ}'
-        transactions = self.api._get_response(
-            method='get',
-            endpoint='/transactions',
-            params={
-                'account_id': account_id,
-                'since': since,
-            },
-        ).json()['transactions']
+
+        # UPD from feb 2024
+        # seems like even within 5 mins of first login, monzo api doesn't like when we pass timestamps too far back in time for 'since'
+        # see https://community.monzo.com/t/changes-when-listing-with-our-api/158676
+        assert not self.full, 'broken for now, see https://community.monzo.com/t/changes-when-listing-with-our-api/158676'
+
+        since = (datetime.now(tz=timezone.utc) - timedelta(days=90 - 1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+        transactions: List[Json] = []
+
+        while True:
+            chunk = self.api._get_response(
+                method='get',
+                endpoint='/transactions',
+                params={
+                    'account_id': account_id,
+                    'limit': 100,
+                    'since': since,
+                },
+            ).json()['transactions']
+
+            if len(chunk) == 0:
+                # this is possible if account had no transactions at all? handle just in case
+                break
+
+            if len(transactions) > 0:
+                # 'since' is always inclusive, and we don't remove first transaction in chunk, there will be dupes
+                # assert just in case
+                assert transactions[-1]['id'] == chunk[0]['id']
+                chunk = chunk[1:]
+
+            if len(chunk) == 0:
+                # no more data
+                break
+
+            transactions.extend(chunk)
+            since = transactions[-1]['created']
+
+        # ok, they are ordered by creation date?
         full_transactions = (
             self.api._get_response(method='get', endpoint=f"/transactions/{t['id']}", params={'expand[]': 'merchant'}).json()['transaction']
             # NOTE: sadly this doens't work at the momen, see https://github.com/pawelad/pymonzo/issues/28
@@ -71,7 +100,7 @@ def get_json(**params):
     return Exporter(**params).export_json()
 
 
-def login(client_id: Optional[str] = None, client_secret: Optional[str] = None):
+def login(client_id: Optional[str] = None, client_secret: Optional[str] = None) -> None:
     """
     Asking for user input here is ok; we only need to do it once
     """
@@ -103,7 +132,7 @@ After that, the credentials are saved to the file ({token_path}), and you'll jus
         run(['xdg-open', auth_url])
     except:  # in case they not have xdg-open..
         pass
-    auth_code = input('auth code (after browser auth): ')
+    auth_code = input('auth code (after you authenticate in the web browser), only insert code= query param: ')
     api = MonzoAPI(
         client_id=client_id,
         client_secret=client_secret,
@@ -126,16 +155,19 @@ def make_parser():
 You can also import ~export.py~ as a module and call ~get_json~ function directly to get raw JSON.
         ''',
     )
+    parser.add_argument('--login', action='store_true', help='use to log in (only need to use once)')
     parser.add_argument(
-        '--first-time',
+        '--full',
         action='store_true',
         help='''
-This will log you in and fetch all of your transactions.
+This will fetch all of your transactions.
 
-After 5 minutes after login, api can only sync the last 90 days of transactions.
+Note that after 5 minutes after login, api can only sync the last 90 days of transactions.
 See https://docs.monzo.com/#list-transactions for more information.
 ''',
     )
+
+    parser.add_argument('--first-time', action='store_true', help='combines the effects of --login and --full (legacy flag)')
     return parser
 
 
@@ -145,15 +177,20 @@ def main() -> None:
 
     params = args.params
     dumper = args.dumper
+    full = args.full
+    do_login = args.login
     first_time = args.first_time
+    if first_time:
+        full = True
+        do_login = True
 
     # todo use env variable?
     pymonzo.monzo_api.config.TOKEN_FILE_PATH = params['token_path']
 
-    if first_time:
+    if do_login:
         login()
 
-    j = get_json(**params, first_time=first_time)
+    j = get_json(**params, full=full)
     js = json.dumps(j, indent=1, ensure_ascii=False, sort_keys=True)
     dumper(js)
 
