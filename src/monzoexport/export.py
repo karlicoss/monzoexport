@@ -1,32 +1,30 @@
-#!/usr/bin/env python3
-from datetime import datetime, timedelta, timezone
+from __future__ import annotations
+
 import json
+from datetime import datetime, timedelta, timezone
 from subprocess import run
-from typing import Optional, List
-
-
-from .exporthelpers import export_helper
-from .exporthelpers.export_helper import Json
+from typing import Optional
 
 # useful for debugging http calls
 # import logging
 # # Enable logging at the DEBUG level
 # logging.basicConfig(level=logging.DEBUG)
-
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
 from pymonzo.api_objects import MonzoTransaction  # type: ignore[import-untyped]
+
+from .exporthelpers.export_helper import Json
 
 T_keys = MonzoTransaction._required_keys
 if 'account_balance' in T_keys:
     T_keys.remove('account_balance')
 ###
 
-import pymonzo  # type: ignore
+import pymonzo  # type: ignore[import-untyped]
 from pymonzo import MonzoAPI
 
 
 class Exporter:
-    def __init__(self, *args, full: bool = False, **kwargs) -> None:
+    def __init__(self, *args, full: bool = False, **kwargs) -> None:  # noqa: ARG002
         self.api = MonzoAPI()
         self.full = full
 
@@ -42,7 +40,7 @@ class Exporter:
 
         since = (datetime.now(tz=timezone.utc) - timedelta(days=90 - 1)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-        transactions: List[Json] = []
+        transactions: list[Json] = []
 
         while True:
             chunk = self.api._get_response(
@@ -129,23 +127,23 @@ After that, the credentials are saved to the file ({token_path}), and you'll jus
     print(f'Opening link to proceed with auth: {auth_url}')
 
     try:
-        run(['xdg-open', auth_url])
+        run(['xdg-open', auth_url], check=False)
     except:  # in case they not have xdg-open..
         pass
     auth_code = input('auth code (after you authenticate in the web browser), only insert code= query param: ')
-    api = MonzoAPI(
+    _api = MonzoAPI(
         client_id=client_id,
         client_secret=client_secret,
         auth_code=auth_code,
     )
     print('tap in your monzo PHONE APP to allow access to the data')
-    tapped = input('press any key when tapped')
+    _tapped = input('press any key when tapped')
     print("Token should be saved on disk now (you won't need to relogin anymore)")
 
 
 def make_parser():
     # TODO add logger configuration to export_helper?
-    from .exporthelpers.export_helper import setup_parser, Parser
+    from .exporthelpers.export_helper import Parser, setup_parser
 
     parser = Parser("Tool to export your Monzo transactions")
     setup_parser(
