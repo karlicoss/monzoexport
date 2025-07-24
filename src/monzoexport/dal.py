@@ -1,12 +1,15 @@
-#!/usr/bin/env python3
-from typing import Dict, NamedTuple, Sequence, Iterator, Set, List
+from __future__ import annotations
 
-from .exporthelpers import dal_helper, logging_helper
-from .exporthelpers.dal_helper import PathIsh, Json, pathify
+from collections.abc import Iterator, Sequence
+from typing import NamedTuple
 
 import orjson
+from pymonzo.api_objects import (  # type: ignore[import-untyped]
+    MonzoTransaction,
+)
 
-from pymonzo.api_objects import MonzoTransaction, MonzoMerchant  # type: ignore[import-untyped]
+from .exporthelpers import dal_helper, logging_helper
+from .exporthelpers.dal_helper import Json, PathIsh, pathify
 
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
 T_keys = MonzoTransaction._required_keys
@@ -35,10 +38,10 @@ def _fix_raw_transaction(raw) -> None:
 
 
 class Account(NamedTuple):
-    raw: Dict[TransactionId, TransactionRaw]
+    raw: dict[TransactionId, TransactionRaw]
 
     @property
-    def transactions(self) -> List[MonzoTransaction]:
+    def transactions(self) -> list[MonzoTransaction]:
         return list(map(MonzoTransaction, self.raw.values()))
 
 
@@ -47,8 +50,8 @@ class DAL:
         self.sources = list(map(pathify, sources))
 
     # TODO think about storage format again? acc_id is present in transactions anyway; might be easier to groupby?
-    def data(self) -> Dict[AccountId, Account]:
-        dd: Dict[AccountId, Account] = {}
+    def data(self) -> dict[AccountId, Account]:
+        dd: dict[AccountId, Account] = {}
         for raw in self.transactions_raw():
             acc_id = raw['account_id']
             acc = dd.get(acc_id)
@@ -60,7 +63,7 @@ class DAL:
 
     # order in raw file looks ok, chronological?
     def transactions_raw(self) -> Iterator[TransactionRaw]:
-        emitted: Set[TransactionId] = set()
+        emitted: set[TransactionId] = set()
         total = len(self.sources)
         width = len(str(total))
         for idx, path in enumerate(self.sources):
@@ -70,7 +73,7 @@ class DAL:
                 # backport legacy data
                 acc_id = j[0]['account_id']
                 j = {acc_id: {'data': {'transactions': j}}}
-            for acc_id, acc_payload in j.items():
+            for _acc_id, acc_payload in j.items():  # noqa: PERF102
                 raws = acc_payload['data']['transactions']
                 for raw in raws:
                     _fix_raw_transaction(raw)
@@ -87,20 +90,23 @@ class DAL:
 
 
 def demo(dao: DAL) -> None:
-    import pandas as pd
     import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+    import pandas as pd
 
     for aid, acc in dao.data().items():
         print(f"Account {aid}: {len(acc.transactions)} transactions total")
-        df = pd.DataFrame({
-            'dt': t.created,
-            'description': t.description,
-            # TODO currency
-            'amount': t.amount,
-            'category': t.category,
-        } for t in acc.transactions)
+        df = pd.DataFrame(
+            {
+                'dt': t.created,
+                'description': t.description,
+                # TODO currency
+                'amount': t.amount,
+                'category': t.category,
+            }
+            for t in acc.transactions
+        )
         if len(df) > 0:
-            df.set_index('dt', inplace=True)
+            df = df.set_index('dt')
             # df.to_string(justify='left')
             breakdown = df.groupby('category')['amount'].sum()
             breakdown = breakdown.abs()
