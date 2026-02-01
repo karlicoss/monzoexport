@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 from typing import NamedTuple
 
 import orjson
@@ -9,7 +10,7 @@ from pymonzo.api_objects import (  # type: ignore[import-untyped]
 )
 
 from .exporthelpers import dal_helper, logging_helper
-from .exporthelpers.dal_helper import Json, PathIsh, pathify
+from .exporthelpers.dal_helper import Json, pathify
 
 ### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
 T_keys = MonzoTransaction._required_keys
@@ -46,7 +47,7 @@ class Account(NamedTuple):
 
 
 class DAL:
-    def __init__(self, sources: Sequence[PathIsh]) -> None:
+    def __init__(self, sources: Sequence[Path | str]) -> None:
         self.sources = list(map(pathify, sources))
 
     # TODO think about storage format again? acc_id is present in transactions anyway; might be easier to groupby?
@@ -90,7 +91,7 @@ class DAL:
 
 
 def demo(dao: DAL) -> None:
-    import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+    import matplotlib.pyplot as plt
     import pandas as pd
 
     for aid, acc in dao.data().items():
@@ -98,19 +99,20 @@ def demo(dao: DAL) -> None:
         df = pd.DataFrame(
             {
                 'dt': t.created,
-                'description': t.description,
+                'description': t.description,  # ty: ignore[unresolved-attribute]
                 # TODO currency
-                'amount': t.amount,
-                'category': t.category,
+                'amount': t.amount,  # ty: ignore[unresolved-attribute]
+                'category': t.category,  # ty: ignore[unresolved-attribute]
             }
             for t in acc.transactions
         )
         if len(df) > 0:
             df = df.set_index('dt')
-            # df.to_string(justify='left')
             breakdown = df.groupby('category')['amount'].sum()
             breakdown = breakdown.abs()
-            breakdown.plot.pie(title=aid)  # type: ignore[call-overload]  # not sure why mypy complaining, it works...
+            # ugh seems like y= is only necessary to make type checkers happy
+            # y is optional, but pandas-stubs thinks they are required??
+            breakdown.plot.pie(title=aid, y="amount")
         plt.show()
         # plt.savefig('plot.png')  # useful for testing
 

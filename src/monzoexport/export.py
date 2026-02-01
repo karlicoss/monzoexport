@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from subprocess import run
-from typing import Optional
 
 # useful for debugging http calls
 # import logging
@@ -36,9 +35,11 @@ class Exporter:
         # UPD from feb 2024
         # seems like even within 5 mins of first login, monzo api doesn't like when we pass timestamps too far back in time for 'since'
         # see https://community.monzo.com/t/changes-when-listing-with-our-api/158676
-        assert not self.full, 'broken for now, see https://community.monzo.com/t/changes-when-listing-with-our-api/158676'
+        assert not self.full, (
+            'broken for now, see https://community.monzo.com/t/changes-when-listing-with-our-api/158676'
+        )
 
-        since = (datetime.now(tz=timezone.utc) - timedelta(days=90 - 1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        since = (datetime.now(tz=UTC) - timedelta(days=90 - 1)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
         transactions: list[Json] = []
 
@@ -72,7 +73,9 @@ class Exporter:
 
         # ok, they are ordered by creation date?
         full_transactions = (
-            self.api._get_response(method='get', endpoint=f"/transactions/{t['id']}", params={'expand[]': 'merchant'}).json()['transaction']
+            self.api._get_response(
+                method='get', endpoint=f"/transactions/{t['id']}", params={'expand[]': 'merchant'}
+            ).json()['transaction']
             # NOTE: sadly this doens't work at the momen, see https://github.com/pawelad/pymonzo/issues/28
             # self.api.transaction(t['id'], expand_merchant=True)._raw_data
             for t in transactions
@@ -98,7 +101,7 @@ def get_json(**params):
     return Exporter(**params).export_json()
 
 
-def login(client_id: Optional[str] = None, client_secret: Optional[str] = None) -> None:
+def login(client_id: str | None = None, client_secret: str | None = None) -> None:
     """
     Asking for user input here is ok; we only need to do it once
     """
@@ -165,7 +168,9 @@ See https://docs.monzo.com/#list-transactions for more information.
 ''',
     )
 
-    parser.add_argument('--first-time', action='store_true', help='combines the effects of --login and --full (legacy flag)')
+    parser.add_argument(
+        '--first-time', action='store_true', help='combines the effects of --login and --full (legacy flag)'
+    )
     return parser
 
 
