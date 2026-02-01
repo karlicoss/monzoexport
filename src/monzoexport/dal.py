@@ -2,22 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import orjson
-from pymonzo.api_objects import (  # type: ignore[import-untyped]
-    MonzoTransaction,
-)
 
 from .exporthelpers import dal_helper, logging_helper
 from .exporthelpers.dal_helper import Json, pathify
 
-### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
-T_keys = MonzoTransaction._required_keys
-if 'account_balance' in T_keys:
-    T_keys.remove('account_balance')
-###
-
+if TYPE_CHECKING:
+    # we don't want to make pymonzo a required dependency
+    # since it's not necessary for raw data
+    # so import on top level for type checking and import directly where it's used
+    from pymonzo.transactions import MonzoTransaction
 
 logger = logging_helper.make_logger(__name__)
 
@@ -27,23 +23,14 @@ TransactionId = str
 TransactionRaw = Json
 
 
-def _fix_raw_transaction(raw) -> None:
-    merchant = raw.get('merchant')
-    if not isinstance(merchant, dict):
-        # in old exports merchant is a str??
-        return
-    if 'created' not in merchant:
-        # if there is no created date, parsing merchant fails
-        # see https://github.com/pawelad/pymonzo/issues/28
-        merchant['created'] = raw['created']
-
-
 class Account(NamedTuple):
     raw: dict[TransactionId, TransactionRaw]
 
     @property
     def transactions(self) -> list[MonzoTransaction]:
-        return list(map(MonzoTransaction, self.raw.values()))
+        from pymonzo.transactions import MonzoTransaction
+
+        return [MonzoTransaction(**values) for values in self.raw.values()]
 
 
 class DAL:
@@ -77,7 +64,6 @@ class DAL:
             for _acc_id, acc_payload in j.items():  # noqa: PERF102
                 raws = acc_payload['data']['transactions']
                 for raw in raws:
-                    _fix_raw_transaction(raw)
                     t_id = raw['id']
                     # NOTE: hopefully makes sense to override here, as we collect more data?
                     # TODO not sure what to do about transactions that were updated...
@@ -87,7 +73,9 @@ class DAL:
                     yield raw
 
     def transactions(self) -> Iterator[MonzoTransaction]:
-        yield from map(MonzoTransaction, self.transactions_raw())
+        from pymonzo.transactions import MonzoTransaction
+
+        yield from (MonzoTransaction(**raw) for raw in self.transactions_raw())
 
 
 def demo(dao: DAL) -> None:
