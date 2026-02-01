@@ -2,24 +2,20 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from subprocess import run
+
+from pymonzo import MonzoAPI
+
+from .exporthelpers import logging_helper
 
 # useful for debugging http calls
 # import logging
 # # Enable logging at the DEBUG level
 # logging.basicConfig(level=logging.DEBUG)
-### https://github.com/nomis/pymonzo/commit/45ebe1c01a867b3e6084827e957ccb16db5f6a55
-from pymonzo.api_objects import MonzoTransaction  # type: ignore[import-untyped]
-
 from .exporthelpers.export_helper import Json
 
-T_keys = MonzoTransaction._required_keys
-if 'account_balance' in T_keys:
-    T_keys.remove('account_balance')
-###
-
-import pymonzo  # type: ignore[import-untyped]
-from pymonzo import MonzoAPI
+logger = logging_helper.make_logger(__name__)
 
 
 class Exporter:
@@ -44,13 +40,16 @@ class Exporter:
         transactions: list[Json] = []
 
         while True:
-            chunk = self.api._get_response(
+            # see https://github.com/pawelad/pymonzo/blob/b1bcd6391b066276fb8f464f62f63ffc26f53da2/src/pymonzo/transactions/resources.py#L111-L123
+            # sadly it doesn't expose raw api so we basically just have to copy it...
+            chunk = self.api.transactions._get_response(
                 method='get',
                 endpoint='/transactions',
                 params={
                     'account_id': account_id,
                     'limit': 100,
                     'since': since,
+                    'expand[]': 'merchant',
                 },
             ).json()['transactions']
 
@@ -72,27 +71,20 @@ class Exporter:
             since = transactions[-1]['created']
 
         # ok, they are ordered by creation date?
-        full_transactions = (
-            self.api._get_response(
-                method='get', endpoint=f"/transactions/{t['id']}", params={'expand[]': 'merchant'}
-            ).json()['transaction']
-            # NOTE: sadly this doens't work at the momen, see https://github.com/pawelad/pymonzo/issues/28
-            # self.api.transaction(t['id'], expand_merchant=True)._raw_data
-            for t in transactions
-        )
         return {
-            # TODO balance? for ledging
-            'transactions': list(full_transactions),
+            # todo balance? for ledging
+            'transactions': transactions,
         }
 
-    # TODO could use dictify here...
     def export_json(self) -> Json:
         res = {}
-        for a in self.api.accounts():
-            adata = {}
-            aid = a.id
-            adata['info'] = a._raw_data
-            adata['data'] = self._get_account_data(account_id=aid)
+        # see https://github.com/pawelad/pymonzo/blob/b1bcd6391b066276fb8f464f62f63ffc26f53da2/src/pymonzo/accounts/resources.py#L64-L65
+        for acc_json in self.api.accounts._get_response(method='get', endpoint='/accounts').json()['accounts']:
+            aid = acc_json['id']
+            adata = {
+                'info': acc_json,
+                'data': self._get_account_data(account_id=aid),
+            }
             res[aid] = adata
         return res
 
@@ -105,7 +97,7 @@ def login(client_id: str | None = None, client_secret: str | None = None) -> Non
     """
     Asking for user input here is ok; we only need to do it once
     """
-    token_path = pymonzo.monzo_api.config.TOKEN_FILE_PATH
+    token_path = MonzoAPI.settings_path
     print(
         f'''
 This will log you into Monzo API.
@@ -114,33 +106,54 @@ Please follow the [[https://github.com/pawelad/pymonzo#oauth-2][instructions]],
 and enter the auth parameters as you are prompted.
 
 You'll only need to input that manually once!
-After that, the credentials are saved to the file ({token_path}), and you'll just have to pass it to the export script.
+After that, the credentials are saved to the file ({token_path!s}), and you'll just have to pass it to the export script.
 '''.lstrip()
     )
 
     # not sure if relying on builtin redirect URI is a good idea?
     redirect_uri = 'https://github.com'
-    pymonzo.monzo_api.config.REDIRECT_URI = redirect_uri
 
     if client_id is None:
         client_id = input('client id: ')
     if client_secret is None:
         client_secret = input('client secret: ')
-    auth_url = f'https://auth.monzo.com/?response_type=code&redirect_uri={redirect_uri}&client_id={client_id}&state=some_secret_string'
+
+    # ugh. pymonzo has MonzoAPI.authorize(...) method
+    # however, it tries to launch a local web server and get a response from browser which may not always work (e.g. on a VPS)
+    # see https://github.com/pawelad/pymonzo/blob/b1bcd6391b066276fb8f464f62f63ffc26f53da2/src/pymonzo/client.py#L170-L175
+    from authlib.integrations.httpx_client import OAuth2Client
+
+    client = OAuth2Client(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+        token_endpoint_auth_method="client_secret_post",
+    )
+    auth_url, _state = client.create_authorization_url(MonzoAPI.authorization_endpoint)
     print(f'Opening link to proceed with auth: {auth_url}')
 
     try:
         run(['xdg-open', auth_url], check=False)
     except:  # in case they not have xdg-open..
         pass
-    auth_code = input('auth code (after you authenticate in the web browser), only insert code= query param: ')
-    _api = MonzoAPI(
-        client_id=client_id,
-        client_secret=client_secret,
-        auth_code=auth_code,
+
+    authorization_response = input("paste FULL url you've been redirected to: ")
+    token = client.fetch_token(
+        url=MonzoAPI.token_endpoint,
+        authorization_response=authorization_response,
     )
+
     print('tap in your monzo PHONE APP to allow access to the data')
     _tapped = input('press any key when tapped')
+
+    from pymonzo.settings import PyMonzoSettings
+
+    settings = PyMonzoSettings(
+        client_id=client_id,
+        client_secret=client_secret,
+        token=token,
+    )
+    settings.save_to_disk(MonzoAPI.settings_path)
     print("Token should be saved on disk now (you won't need to relogin anymore)")
 
 
@@ -174,6 +187,27 @@ See https://docs.monzo.com/#list-transactions for more information.
     return parser
 
 
+def _migrate_token_if_necessary(token_path: Path) -> None:
+    # from pymonzo v1 to v2 token format changed, this is just to migrate it without user involvement
+    if not token_path.exists():
+        return
+    data = json.loads(token_path.read_text())
+    if 'token' in data:
+        # already v2 format
+        return
+    logger.warning(f"migrating {token_path} to pymonzo v2 format")
+    # only 'client_id' and 'client_secret' stay on top
+    # everything else goes inside 'token' dict
+    client_id = data.pop('client_id')
+    client_secret = data.pop('client_secret')
+    new_data = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'token': data,
+    }
+    token_path.write_text(json.dumps(new_data, indent=1, sort_keys=True))
+
+
 def main() -> None:
     parser = make_parser()
     args = parser.parse_args()
@@ -187,8 +221,9 @@ def main() -> None:
         full = True
         do_login = True
 
-    # todo use env variable?
-    pymonzo.monzo_api.config.TOKEN_FILE_PATH = params['token_path']
+    token_path = Path(params['token_path'])
+    _migrate_token_if_necessary(token_path)
+    MonzoAPI.settings_path = token_path
 
     if do_login:
         login()

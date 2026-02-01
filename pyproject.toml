@@ -19,7 +19,7 @@ Homepage = "https://github.com/karlicoss/ghexport"
 
 
 [project.optional-dependencies]
-export = ["pymonzo<1.0.0"]
+export = ["pymonzo>=2"]
 dal = ["orjson"]
 dal_demo = ["pandas", "matplotlib"]
 optional = [
@@ -43,6 +43,7 @@ typecheck = [
     "ty>=0.0.14",
 
     "pandas-stubs",
+    "types-Authlib",
 
     { include-group = "testing" },
 ]
