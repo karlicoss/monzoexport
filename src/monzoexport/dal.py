@@ -87,10 +87,10 @@ def demo(dao: DAL) -> None:
         df = pd.DataFrame(
             {
                 'dt': t.created,
-                'description': t.description,  # ty: ignore[unresolved-attribute]
+                'description': t.description,
                 # TODO currency
-                'amount': t.amount,  # ty: ignore[unresolved-attribute]
-                'category': t.category,  # ty: ignore[unresolved-attribute]
+                'amount': t.amount,
+                'category': t.category,
             }
             for t in acc.transactions
         )

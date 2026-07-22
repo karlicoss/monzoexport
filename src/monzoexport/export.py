@@ -166,8 +166,8 @@ def make_parser():
         parser=parser,
         params=['token-path'],
         extra_usage='''
-You can also import ~export.py~ as a module and call ~get_json~ function directly to get raw JSON.
-        ''',
+You can also import `monzoexport.export` as a module and call `get_json` function directly to get raw JSON.
+'''.lstrip(),
     )
     parser.add_argument('--login', action='store_true', help='use to log in (only need to use once)')
     parser.add_argument(
