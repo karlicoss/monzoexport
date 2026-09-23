@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from subprocess import run
@@ -93,6 +94,13 @@ def get_json(**params):
     return Exporter(**params).export_json()
 
 
+def _input_stderr(prompt: str) -> str:
+    # stderr is line-buffered, but this prompt has no terminating newline.
+    # Flush before waiting for input so the prompt is visible even when stderr is a pipe.
+    print(prompt, file=sys.stderr, end='', flush=True)
+    return input()
+
+
 def login(client_id: str | None = None, client_secret: str | None = None) -> None:
     """
     Asking for user input here is ok; we only need to do it once
@@ -107,16 +115,17 @@ and enter the auth parameters as you are prompted.
 
 You'll only need to input that manually once!
 After that, the credentials are saved to the file ({token_path!s}), and you'll just have to pass it to the export script.
-'''.lstrip()
+'''.lstrip(),
+        file=sys.stderr,
     )
 
     # not sure if relying on builtin redirect URI is a good idea?
     redirect_uri = 'https://github.com'
 
     if client_id is None:
-        client_id = input('client id: ')
+        client_id = _input_stderr('client id: ')
     if client_secret is None:
-        client_secret = input('client secret: ')
+        client_secret = _input_stderr('client secret: ')
 
     # ugh. pymonzo has MonzoAPI.authorize(...) method
     # however, it tries to launch a local web server and get a response from browser which may not always work (e.g. on a VPS)
@@ -130,21 +139,21 @@ After that, the credentials are saved to the file ({token_path!s}), and you'll j
         token_endpoint_auth_method="client_secret_post",
     )
     auth_url, _state = client.create_authorization_url(MonzoAPI.authorization_endpoint)
-    print(f'Opening link to proceed with auth: {auth_url}')
+    print(f'Opening link to proceed with auth: {auth_url}', file=sys.stderr)
 
     try:
-        run(['xdg-open', auth_url], check=False)
+        run(['xdg-open', auth_url], stdout=sys.stderr, check=False)
     except:  # in case they not have xdg-open..
         pass
 
-    authorization_response = input("paste FULL url you've been redirected to: ")
+    authorization_response = _input_stderr("paste FULL url you've been redirected to: ")
     token = client.fetch_token(
         url=MonzoAPI.token_endpoint,
         authorization_response=authorization_response,
     )
 
-    print('tap in your monzo PHONE APP to allow access to the data')
-    _tapped = input('press any key when tapped')
+    print('tap in your monzo PHONE APP to allow access to the data', file=sys.stderr)
+    _tapped = _input_stderr('press Enter when tapped: ')
 
     from pymonzo.settings import PyMonzoSettings
 
@@ -154,7 +163,7 @@ After that, the credentials are saved to the file ({token_path!s}), and you'll j
         token=token,
     )
     settings.save_to_disk(MonzoAPI.settings_path)
-    print("Token should be saved on disk now (you won't need to relogin anymore)")
+    print('Token saved; recent exports can reuse it. Full-history exports require a fresh login.', file=sys.stderr)
 
 
 def make_parser():
