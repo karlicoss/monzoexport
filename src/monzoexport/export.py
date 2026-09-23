@@ -24,67 +24,74 @@ class Exporter:
         self.api = MonzoAPI()
         self.full = full
 
-    def _get_account_data(self, account_id: str) -> Json:
-        # ugh. after 5 minutes past auth can only get last 90 days
-        # https://docs.monzo.com/#list-transactions
-        # otherwise we'd get auth error
+    def _get_account_data(self, *, account_id: str, start: datetime, end: datetime) -> Json:
+        # Monzo rejects intervals longer than roughly one year, even immediately after authentication.
+        # https://community.monzo.com/t/changes-when-listing-with-our-api/158676
+        window = timedelta(days=364)
+        overlap = timedelta(seconds=1)
+        limit = 100
+        transactions: dict[str, Json] = {}
 
-        # UPD from feb 2024
-        # seems like even within 5 mins of first login, monzo api doesn't like when we pass timestamps too far back in time for 'since'
-        # see https://community.monzo.com/t/changes-when-listing-with-our-api/158676
-        assert not self.full, (
-            'broken for now, see https://community.monzo.com/t/changes-when-listing-with-our-api/158676'
-        )
+        while start < end:
+            before = min(start + window, end)
+            since = start.isoformat()
+            logger.info(f'Fetching {account_id} transactions from {since} to {before.isoformat()}')
 
-        since = (datetime.now(tz=UTC) - timedelta(days=90 - 1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            while True:
+                # Use the raw response to preserve fields not exposed by pymonzo's models.
+                chunk = self.api.transactions._get_response(
+                    method='get',
+                    endpoint='/transactions',
+                    params={
+                        'account_id': account_id,
+                        'limit': limit,
+                        'since': since,
+                        'before': before.isoformat(),
+                        'expand[]': 'merchant',
+                    },
+                ).json()['transactions']
 
-        transactions: list[Json] = []
+                for transaction in chunk:
+                    transactions[transaction['id']] = transaction
 
-        while True:
-            # see https://github.com/pawelad/pymonzo/blob/b1bcd6391b066276fb8f464f62f63ffc26f53da2/src/pymonzo/transactions/resources.py#L111-L123
-            # sadly it doesn't expose raw api so we basically just have to copy it...
-            chunk = self.api.transactions._get_response(
-                method='get',
-                endpoint='/transactions',
-                params={
-                    'account_id': account_id,
-                    'limit': 100,
-                    'since': since,
-                    'expand[]': 'merchant',
-                },
-            ).json()['transactions']
+                if len(chunk) < limit:
+                    break
 
-            if len(chunk) == 0:
-                # this is possible if account had no transactions at all? handle just in case
+                # IDs do not always follow creation order, so an ID cursor can skip transactions.
+                # Re-fetch the final timestamp to include ties even if the lower bound is exclusive.
+                next_since = datetime.fromisoformat(chunk[-1]['created']) - timedelta(microseconds=1)
+                assert next_since > datetime.fromisoformat(since), (
+                    'Transaction pagination did not advance; a full page may share one timestamp',
+                    account_id,
+                    since,
+                )
+                since = next_since.isoformat()
+
+            logger.info(f'Fetched {len(transactions)} transactions for {account_id} so far')
+            if before == end:
                 break
+            # Overlap windows to include boundary transactions even if both timestamp bounds are exclusive.
+            start = before - overlap
 
-            if len(transactions) > 0:
-                # 'since' is always inclusive, and we don't remove first transaction in chunk, there will be dupes
-                # assert just in case
-                assert transactions[-1]['id'] == chunk[0]['id']
-                chunk = chunk[1:]
-
-            if len(chunk) == 0:
-                # no more data
-                break
-
-            transactions.extend(chunk)
-            since = transactions[-1]['created']
-
-        # ok, they are ordered by creation date?
         return {
             # todo balance? for ledging
-            'transactions': transactions,
+            'transactions': list(transactions.values()),
         }
 
     def export_json(self) -> Json:
         res = {}
+        end = datetime.now(tz=UTC)
         # see https://github.com/pawelad/pymonzo/blob/b1bcd6391b066276fb8f464f62f63ffc26f53da2/src/pymonzo/accounts/resources.py#L64-L65
         for acc_json in self.api.accounts._get_response(method='get', endpoint='/accounts').json()['accounts']:
             aid = acc_json['id']
+            if self.full:
+                start = datetime.fromisoformat(acc_json['created']) - timedelta(seconds=1)
+            else:
+                # Leave a day's margin for the 90-day restriction while the export runs.
+                start = end - timedelta(days=89)
             adata = {
                 'info': acc_json,
-                'data': self._get_account_data(account_id=aid),
+                'data': self._get_account_data(account_id=aid, start=start, end=end),
             }
             res[aid] = adata
         return res
@@ -178,14 +185,16 @@ def make_parser():
 You can also import `monzoexport.export` as a module and call `get_json` function directly to get raw JSON.
 '''.lstrip(),
     )
-    parser.add_argument('--login', action='store_true', help='use to log in (only need to use once)')
+    parser.add_argument('--login', action='store_true', help='log in again; combine with --full to fetch all history')
     parser.add_argument(
         '--full',
         action='store_true',
         help='''
 This will fetch all of your transactions.
 
-Note that after 5 minutes after login, api can only sync the last 90 days of transactions.
+Use --login --full to reauthenticate and start exporting immediately.
+Historical requests must complete within 5 minutes of authentication in the Monzo app.
+After that, the API only permits the last 90 days of transactions.
 See https://docs.monzo.com/#list-transactions for more information.
 ''',
     )

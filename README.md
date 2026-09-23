@@ -99,14 +99,23 @@ The `--first-time` parameter walks you through the login procedure:
     python3 -m monzoexport.export --token-path token.json --first-time /path/to/first-export.json
 
 After a successful export, move `token.json` somewhere safe and pass its
-location as `--token-path` later. You won’t need to pass `--first-time`
-again.
+location as `--token-path` later.
+For subsequent exports of recent transactions, omit `--first-time`.
 
 **After five minutes from login, the API can only sync the last 90 days
 of transactions.** See the [Monzo API
 documentation](https://docs.monzo.com/#list-transactions) for more
-information. It is therefore important to do at least one export
-immediately after receiving the token.
+information.
+Plan to finish fetching older transactions within that five-minute window.
+Do not assume that starting an export during the window extends access for later requests.
+
+To fetch full history again, reauthenticate and immediately export in the same command:
+
+    python3 -m monzoexport.export --token-path token.json --login --full /path/to/full-export.json
+
+Approve access in the Monzo app and promptly continue at the terminal prompt.
+The exporter scans from each account's creation date in windows shorter than a year and paginates within each window.
+It reports progress and propagates API errors, including expired historical access, instead of writing an incomplete export.
 
 # Using the data
 
