@@ -47,8 +47,13 @@ Install with pip:
 The ['extras'](https://packaging.python.org/en/latest/tutorials/installing-packages/#installing-extras) in square brackets provide additional dependencies, feel free to omit some of them if you don't need them:
 
 - `export` is needed for [export functionality](#exporting)
-- `dal` is needed to [access exported data](#using-the-data)
+- `dal` is needed to [access raw exported data](#using-the-data), without pymonzo
+- `dal,export` also enables typed transactions backed by pymonzo
+- `dal_demo` includes the dependencies for the plotting demo
 - `optional` is for nicer logging facilities and faster JSON processing
+
+Installing without extras installs no dependencies.
+Choose the extras for the functionality you use.
 
 See [`optional-dependencies`](pyproject.toml) section in `pyproject.toml` for more details.
 
@@ -120,6 +125,21 @@ The exporter scans from each account's creation date in windows shorter than a y
 It reports progress and propagates API errors, including expired historical access, instead of writing an incomplete export.
 
 # Using the data
+
+For raw-data access without pymonzo:
+
+`{python} inline_code(f"pip3 install '{project_name}[dal] @ {git_http_link}'")`
+
+```python
+from monzoexport.dal import DAL
+
+dal = DAL(["export.json"])
+transactions = list(dal.transactions_raw())
+accounts = dal.data()  # Each account exposes its raw transactions in account.raw.
+```
+
+`DAL.transactions()` and `Account.transactions` return pymonzo models and require the `export` extra as well as `dal`.
+The command-line plotting demo requires `dal_demo`.
 
 ```{python}
 #| label: dal-help
