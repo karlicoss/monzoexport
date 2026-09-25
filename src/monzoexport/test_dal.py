@@ -34,6 +34,24 @@ def test_raw_data(tmp_path: Path, _without_pymonzo: None) -> None:
     assert reader.data()['acc_test'].raw == {'tx_test': raw}
 
 
+def test_later_sources_override_transactions(tmp_path: Path) -> None:
+    """Use later records while retaining older-only transactions and first-seen ID order."""
+    original = {'id': 'tx_updated', 'account_id': 'acc_test', 'amount': -100, 'notes': 'old', 'obsolete_field': True}
+    updated = {'id': 'tx_updated', 'account_id': 'acc_test', 'amount': -125, 'notes': 'new', 'settled': ''}
+    older_only = {'id': 'tx_older_only', 'account_id': 'acc_test', 'amount': -200}
+    newer_only = {'id': 'tx_newer_only', 'account_id': 'acc_test', 'amount': -300}
+
+    # Filenames deliberately disagree with the supplied source order.
+    older = tmp_path / 'z-old.json'
+    newer = tmp_path / 'a-new.json'
+    for path, records in ((older, [original, older_only]), (newer, [newer_only, updated])):
+        path.write_bytes(orjson.dumps({'acc_test': {'data': {'transactions': records}}}))
+
+    reader = dal.DAL([older, newer])
+    assert list(reader.transactions_raw()) == [updated, older_only, newer_only]
+    assert reader.data()['acc_test'].raw == {t['id']: t for t in [updated, older_only, newer_only]}
+
+
 def transactions() -> Iterator[dal.MonzoTransaction]:
     """Match HPI's provider annotation without importing HPI or pymonzo."""
     return dal.DAL([]).transactions()

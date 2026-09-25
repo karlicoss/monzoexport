@@ -54,9 +54,13 @@ class DAL:
             acc.raw[raw['id']] = raw
         return dd
 
-    # order in raw file looks ok, chronological?
     def transactions_raw(self) -> Iterator[TransactionRaw]:
-        emitted: set[TransactionId] = set()
+        """Yield each transaction once, preferring its last occurrence in source order.
+
+        Pass sources from oldest to newest to use the latest available snapshot.
+        Transactions retain the order in which their IDs first appear.
+        """
+        transactions: dict[TransactionId, TransactionRaw] = {}
         total = len(self.sources)
         width = len(str(total))
         for idx, path in enumerate(self.sources):
@@ -69,13 +73,8 @@ class DAL:
             for _acc_id, acc_payload in j.items():  # noqa: PERF102
                 raws = acc_payload['data']['transactions']
                 for raw in raws:
-                    t_id = raw['id']
-                    # NOTE: hopefully makes sense to override here, as we collect more data?
-                    # TODO not sure what to do about transactions that were updated...
-                    if t_id in emitted:
-                        continue
-                    emitted.add(t_id)
-                    yield raw
+                    transactions[raw['id']] = raw
+        yield from transactions.values()
 
     def transactions(self) -> Iterator[MonzoTransaction]:
         from pymonzo.transactions import MonzoTransaction
