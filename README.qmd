@@ -138,6 +138,9 @@ transactions = list(dal.transactions_raw())
 accounts = dal.data()  # Each account exposes its raw transactions in account.raw.
 ```
 
+For multiple exports, pass sources from oldest to newest, e.g. `DAL(["older.json", "newer.json"])`.
+For duplicate transaction IDs, the last record wins; transactions retain the order in which their IDs first appeared.
+
 `DAL.transactions()` and `Account.transactions` return pymonzo models and require the `export` extra as well as `dal`.
 The command-line plotting demo requires `dal_demo`.
 
