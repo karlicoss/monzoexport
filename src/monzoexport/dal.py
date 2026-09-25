@@ -14,6 +14,11 @@ if TYPE_CHECKING:
     # since it's not necessary for raw data
     # so import on top level for type checking and import directly where it's used
     from pymonzo.transactions import MonzoTransaction
+else:
+    # HPI resolves this annotation at runtime when discovering data providers.
+    from typing import Any
+
+    MonzoTransaction = Any
 
 logger = logging_helper.make_logger(__name__)
 

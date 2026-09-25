@@ -2,9 +2,7 @@
 [project]
 dynamic = ["version"]  # version is managed by build backend
 name = "monzoexport"
-dependencies = [
-    "monzoexport[dal,export]",  # TODO backwards compatibility -- remove later?
-]
+dependencies = []
 requires-python = ">=3.12"
 
 ## these are only useful for pypi
@@ -22,7 +20,7 @@ Homepage = "https://github.com/karlicoss/monzoexport"
 [project.optional-dependencies]
 export = ["pymonzo>=2"]
 dal = ["orjson"]
-dal_demo = ["pandas", "matplotlib"]
+dal_demo = ["monzoexport[dal,export]", "pandas", "matplotlib"]
 optional = [
     "orjson",  # faster json processing
     "colorlog",
@@ -184,6 +182,7 @@ lint.ignore = [
     "PLW2901",  # for loop variable overwritten, usually this is intentional
 
     "PT011",  # pytest raises is too broad
+    "PT019",  # Prefer fixture parameters for navigation and refactoring.
 
     "COM812",  # trailing comma missing -- mostly just being annoying with long multiline strings
 
