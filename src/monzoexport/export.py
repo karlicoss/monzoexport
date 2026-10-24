@@ -1,22 +1,22 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from subprocess import run
 
-from pymonzo import MonzoAPI
-
-from .exporthelpers import logging_helper
-
 # useful for debugging http calls
 # import logging
 # # Enable logging at the DEBUG level
 # logging.basicConfig(level=logging.DEBUG)
-from .exporthelpers.export_helper import Json
+import hpikit.cli.export as cli
+from hpikit.json import Json
+from kloggy import get_logger
+from pymonzo import MonzoAPI
 
-logger = logging_helper.make_logger(__name__)
+logger = get_logger(__name__)
 
 
 class Exporter:
@@ -97,7 +97,7 @@ class Exporter:
         return res
 
 
-def get_json(**params):
+def get_json(**params) -> Json:
     return Exporter(**params).export_json()
 
 
@@ -173,13 +173,10 @@ After that, the credentials are saved to the file ({token_path!s}), and you'll j
     print('Token saved; recent exports can reuse it. Full-history exports require a fresh login.', file=sys.stderr)
 
 
-def make_parser():
+def make_parser() -> argparse.ArgumentParser:
     # TODO add logger configuration to export_helper?
-    from .exporthelpers.export_helper import Parser, setup_parser
-
-    parser = Parser("Tool to export your Monzo transactions")
-    setup_parser(
-        parser=parser,
+    parser = cli.make_parser(
+        description="Tool to export your Monzo transactions",
         params=['token-path'],
         extra_usage='''
 You can also import `monzoexport.export` as a module and call `get_json` function directly to get raw JSON.
@@ -230,8 +227,7 @@ def main() -> None:
     parser = make_parser()
     args = parser.parse_args()
 
-    params = args.params
-    dumper = args.dumper
+    params = cli.get_params(parser, args)
     full = args.full
     do_login = args.login
     first_time = args.first_time
@@ -248,7 +244,7 @@ def main() -> None:
 
     j = get_json(**params, full=full)
     js = json.dumps(j, indent=1, ensure_ascii=False, sort_keys=True)
-    dumper(js)
+    cli.dump(js, path=args.path)
 
 
 if __name__ == '__main__':

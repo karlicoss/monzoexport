@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Iterator
 from importlib import reload
 from pathlib import Path
 from typing import get_args, get_origin, get_type_hints
 
-import orjson
 import pytest
 
-from . import dal
+from .. import dal
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def test_raw_data(tmp_path: Path, _without_pymonzo: None) -> None:
     raw = {'id': 'tx_test', 'account_id': 'acc_test', 'amount': -123, 'extra_field': 'preserved'}
     payload = {'acc_test': {'data': {'transactions': [raw]}}}
     source = tmp_path / 'export.json'
-    source.write_bytes(orjson.dumps(payload))
+    source.write_text(json.dumps(payload))
 
     reader = dal.DAL([source])
     assert list(reader.transactions_raw()) == [raw]
@@ -45,7 +45,7 @@ def test_later_sources_override_transactions(tmp_path: Path) -> None:
     older = tmp_path / 'z-old.json'
     newer = tmp_path / 'a-new.json'
     for path, records in ((older, [original, older_only]), (newer, [newer_only, updated])):
-        path.write_bytes(orjson.dumps({'acc_test': {'data': {'transactions': records}}}))
+        path.write_text(json.dumps({'acc_test': {'data': {'transactions': records}}}))
 
     reader = dal.DAL([older, newer])
     assert list(reader.transactions_raw()) == [updated, older_only, newer_only]

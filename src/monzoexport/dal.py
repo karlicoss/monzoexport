@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
+from concurrent.futures import Executor
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-import orjson
-
-from .exporthelpers import dal_helper, logging_helper
-from .exporthelpers.dal_helper import Json, pathify
+import hpikit.cli.dal as cli
+import koncurrent
+from hpikit.json import Json, loads
+from hpikit.paths import as_paths
+from kloggy import get_logger
+from kloggy.progress import progress
 
 if TYPE_CHECKING:
     # we don't want to make pymonzo a required dependency
@@ -20,7 +23,7 @@ else:
 
     MonzoTransaction = Any
 
-logger = logging_helper.make_logger(__name__)
+logger = get_logger(__name__)
 
 
 AccountId = str
@@ -38,9 +41,26 @@ class Account(NamedTuple):
         return [MonzoTransaction(**values) for values in self.raw.values()]
 
 
+def _load(path: Path) -> Json:
+    """
+    Parses one export file -- on the top level, so it can run on a process pool too.
+    """
+    j = loads(path.read_bytes())
+    if isinstance(j, list):
+        # backport legacy data
+        acc_id = j[0]['account_id']
+        j = {acc_id: {'data': {'transactions': j}}}
+    return j
+
+
 class DAL:
     def __init__(self, sources: Sequence[Path | str]) -> None:
-        self.sources = list(map(pathify, sources))
+        self.sources = as_paths(sources)
+
+        # where to parse the files -- None means koncurrent's shared default, serial unless configured otherwise
+        # set these before iterating to override, e.g. dal.executor = ThreadPoolExecutor(4)
+        self.executor: Executor | None = None
+        self.buffersize: int | None = None  # None: twice the executor's number of workers, or 1 when running serially
 
     # TODO think about storage format again? acc_id is present in transactions anyway; might be easier to groupby?
     def data(self) -> dict[AccountId, Account]:
@@ -61,19 +81,19 @@ class DAL:
         Transactions retain the order in which their IDs first appear.
         """
         transactions: dict[TransactionId, TransactionRaw] = {}
-        total = len(self.sources)
-        width = len(str(total))
-        for idx, path in enumerate(self.sources):
-            logger.info(f'processing [{idx:>{width}}/{total:>{width}}] {path}')
-            j = orjson.loads(path.read_bytes())
-            if isinstance(j, list):
-                # backport legacy data
-                acc_id = j[0]['account_id']
-                j = {acc_id: {'data': {'transactions': j}}}
-            for _acc_id, acc_payload in j.items():  # noqa: PERF102
-                raws = acc_payload['data']['transactions']
-                for raw in raws:
-                    transactions[raw['id']] = raw
+        # Buffering keeps parsed files from piling up in memory when parsing outpaces the loop below.
+        with koncurrent.map_results(_load, self.sources, executor=self.executor, buffersize=self.buffersize) as results:
+            # Track results as they are consumed, so queued executor work doesn't advance the bar prematurely.
+            # Log each path before waiting for its result, including before parsing in serial mode.
+            files = progress(self.sources, logger=logger, unit='files')
+            for _, j in zip(files, results, strict=True):
+                # This DAL still raises on a bad file; callers expect transactions rather than yielded exceptions.
+                if isinstance(j, Exception):
+                    raise j
+                for _acc_id, acc_payload in j.items():  # noqa: PERF102
+                    raws = acc_payload['data']['transactions']
+                    for raw in raws:
+                        transactions[raw['id']] = raw
         yield from transactions.values()
 
     def transactions(self) -> Iterator[MonzoTransaction]:
@@ -110,7 +130,7 @@ def demo(dao: DAL) -> None:
 
 
 def main() -> None:
-    dal_helper.main(DAL=DAL, demo=demo)
+    cli.main(DAL=DAL, demo=demo)
 
 
 if __name__ == '__main__':
