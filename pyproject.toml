@@ -2,7 +2,10 @@
 [project]
 dynamic = ["version"]  # version is managed by build backend
 name = "monzoexport"
-dependencies = []
+dependencies = [
+    "hpikit",
+    "kloggy",
+]
 requires-python = ">=3.12"
 
 ## these are only useful for pypi
@@ -19,12 +22,11 @@ Homepage = "https://github.com/karlicoss/monzoexport"
 
 [project.optional-dependencies]
 export = ["pymonzo>=2"]
-dal = ["orjson"]
+dal = ["koncurrent"]
 dal_demo = ["monzoexport[dal,export]", "pandas", "matplotlib"]
 optional = [
-    "orjson",  # faster json processing
-    "colorlog",
-    "ijson",  # faster iterative json processing
+    "hpikit[optional]", # faster JSON parsing and transparent compression
+    "kloggy[enlighten]",  # progress bars, shown when KLOGGY_PROGRESS is set, e.g. KLOGGY_PROGRESS=enlighten
 ]
 
 [dependency-groups]

@@ -10,10 +10,10 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from hpikit.json import Json
 from httpx import Response
 
-from . import export
-from .exporthelpers.export_helper import Json
+from .. import export
 
 NOW = datetime(2026, 9, 23, tzinfo=UTC)
 
